@@ -1,77 +1,140 @@
 package Week12;
 
 /**
- * Problem 4: Campus Map Pins
+ * Problem 4: Library Returns by Due Day
  *
  * TASK:
- * The campus map app has a general pin and a hostel pin. Both have a class-level banner
- * and an instance-level name, and both describe themselves with getDetails().
- * CampusPin declares:
- *   public static String banner = "Campus";
- *   public String name = "General Pin";
- *   public String getDetails() { return "Details: " + name; }
+ * Returned books are chained in the order they were dropped at the desk, each with the day it was due.
+ * Sort the chain by due day so overdue books are handled first. Books with the same due day must keep
+ * their drop order (stable sort).
+ * Implement Node sortByDueDay(Node head) using merge sort on the linked list. Change links only;
+ * do not copy values into an array. Each node holds a title and a due day.
  *
- * HostelPin extends CampusPin and declares:
- *   public static String banner = "Hostel";
- *   public String name = "Hostel Pin";
- *   and an overriding getDetails() with the same body.
+ * Complexity Analysis:
+ * 1. Time Complexity:
+ *    - Splitting the list takes O(n) via slow and fast pointers.
+ *    - Merging two sorted linked lists takes O(n) pointer updates.
+ *    - Recurrence relation: T(n) = 2T(n/2) + O(n), resolving to O(n log n).
  *
- * In main, write CampusPin p = new HostelPin(); and print p.banner, p.name and p.getDetails().
- * For each line, state whether the reference type or the object type decided the value, and explain why.
+ * 2. Space Complexity:
+ *    - In-place relinking requires no additional heap nodes.
+ *    - The call stack depth for recursive splitting is O(log n).
+ *    - Total Auxiliary Space Complexity: O(log n).
  *
- * Complexity & Resolution Analysis:
- * 1. p.banner:
- *    - Resolved at COMPILE TIME.
- *    - In Java, static fields cannot be overridden; they are hidden.
- *    - Access through an object reference is resolved based solely on the compile-time
- *      reference type (CampusPin), not the runtime instance type.
- *
- * 2. p.name:
- *    - Resolved at COMPILE TIME.
- *    - In Java, instance fields are also hidden rather than polymorphic/overridden.
- *    - Field lookups are bound statically by the compiler based on the reference type (CampusPin).
- *
- * 3. p.getDetails():
- *    - Resolved at RUN TIME.
- *    - Instance methods participate in dynamic method dispatch (runtime polymorphism).
- *    - The JVM inspects the actual object type on the heap (HostelPin) and invokes HostelPin's
- *      overridden getDetails() method. Inside HostelPin's getDetails(), 'name' directly refers
- *      to HostelPin's own field ("Hostel Pin").
+ * Why Merge Sort Suits Linked Lists Better than Quick Sort:
+ * 1. Linked lists do not support O(1) random access by index. Quicksort relies on pivot partitioning
+ *    with bidirectional indexing (like Hoare partition), which causes cache misses and traversal overhead.
+ * 2. Merging two sorted linked lists requires zero auxiliary buffer space ($O(1)$ extra space) because
+ *    pointers are rewired in-place, whereas merging arrays requires allocating an $O(n)$ temporary buffer.
+ * 3. Merge sort on linked lists is naturally stable (taking from the left half on equal due days preserves
+ *    drop order), while standard in-place quicksort is unstable.
  */
 public class Problem4 {
 
-    public static class CampusPin {
-        public static String banner = "Campus";
-        public String name = "General Pin";
+    public static class Node {
+        public String title;
+        public int dueDay;
+        public Node next;
 
-        public String getDetails() {
-            return "Details: " + name;
+        public Node(String title, int dueDay) {
+            this.title = title;
+            this.dueDay = dueDay;
+            this.next = null;
+        }
+
+        public Node(String title, int dueDay, Node next) {
+            this.title = title;
+            this.dueDay = dueDay;
+            this.next = next;
         }
     }
 
-    public static class HostelPin extends CampusPin {
-        public static String banner = "Hostel";
-        public String name = "Hostel Pin";
-
-        @Override
-        public String getDetails() {
-            return "Details: " + name;
+    public static Node sortByDueDay(Node head) {
+        if (head == null || head.next == null) {
+            return head;
         }
+
+        // 1. Split the list in half using slow and fast pointers
+        Node prev = null;
+        Node slow = head;
+        Node fast = head;
+
+        while (fast != null && fast.next != null) {
+            prev = slow;
+            slow = slow.next;
+            fast = fast.next.next;
+        }
+
+        // Cut link between first and second half
+        prev.next = null;
+
+        // 2. Recursively sort both halves
+        Node leftSorted = sortByDueDay(head);
+        Node rightSorted = sortByDueDay(slow);
+
+        // 3. Merge the two sorted halves stably
+        return merge(leftSorted, rightSorted);
+    }
+
+    private static Node merge(Node left, Node right) {
+        Node dummy = new Node("", 0);
+        Node tail = dummy;
+
+        while (left != null && right != null) {
+            // <= ensures stability: equal due days pick left (earlier drop order) first
+            if (left.dueDay <= right.dueDay) {
+                tail.next = left;
+                left = left.next;
+            } else {
+                tail.next = right;
+                right = right.next;
+            }
+            tail = tail.next;
+        }
+
+        if (left != null) {
+            tail.next = left;
+        } else {
+            tail.next = right;
+        }
+
+        return dummy.next;
+    }
+
+    public static String printList(Node head) {
+        if (head == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        Node curr = head;
+        while (curr != null) {
+            sb.append(curr.title).append(":").append(curr.dueDay).append(" -> ");
+            curr = curr.next;
+        }
+        sb.append("null");
+        return sb.toString();
     }
 
     public static void main(String[] args) {
-        // Polymorphic reference assignment
-        CampusPin p = new HostelPin();
+        // Sample 1: Java:15 -> DSA:3 -> OS:9 -> DBMS:3 -> CN:12 -> AI:1
+        Node returns1 = new Node("Java", 15,
+                new Node("DSA", 3,
+                        new Node("OS", 9,
+                                new Node("DBMS", 3,
+                                        new Node("CN", 12,
+                                                new Node("AI", 1))))));
 
-        System.out.println("Expected Output:");
-        System.out.println("banner: Campus (decided by reference type)");
-        System.out.println("name: General Pin (decided by reference type)");
-        System.out.println("Details: Hostel Pin (decided by object type)");
+        System.out.println("Sample 1 Input: returns = " + printList(returns1));
+        returns1 = sortByDueDay(returns1);
+        System.out.println("Expected Output: AI:1 -> DSA:3 -> DBMS:3 -> OS:9 -> CN:12 -> Java:15 -> null");
+        System.out.println("Actual Output:   " + printList(returns1));
         System.out.println();
 
-        System.out.println("Actual Output:");
-        System.out.println("banner: " + p.banner + " (decided by reference type)");
-        System.out.println("name: " + p.name + " (decided by reference type)");
-        System.out.println(p.getDetails() + " (decided by object type)");
+        // Sample 2: returns = (empty)
+        Node returns2 = null;
+        System.out.println("Sample 2 Input: returns = " + printList(returns2));
+        returns2 = sortByDueDay(returns2);
+        System.out.println("Expected Output: null");
+        System.out.println("Actual Output:   " + printList(returns2));
     }
 }

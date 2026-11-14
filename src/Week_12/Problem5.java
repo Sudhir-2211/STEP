@@ -1,216 +1,146 @@
 package Week12;
 
-import java.util.Arrays;
-
 /**
- * Problem 5: Placement Drive Shortlist
+ * Problem 5: Token Mirror Check
  *
  * TASK:
- * The placement cell runs six weekly mock tests. Build the shortlist for the final drive:
- * 1. Rank candidates by total score, highest first, using custom stable merge sort;
- *    equal totals keep their registration order.
- * 2. For each candidate, find the largest total gain over consecutive weekly changes
- *    and report it as "test x to y" (1-based, earliest run on ties).
- * 3. CUTOFF x prints how many candidates have a total of at least x using binary search.
- * 4. PAIR t finds two different candidates whose totals add up to exactly t using two pointers
- *    on the sorted list, or prints "no pair".
+ * A kiosk prints a chain of token numbers and wants to know whether the chain reads the same
+ * from both ends. Memory on the kiosk is very limited.
+ * Implement boolean isPalindrome(Node head) using O(1) extra space.
+ * You may temporarily change links, but the list must be exactly as it was when the method returns.
+ * Write your own node class with data and next fields; do not use java.util.LinkedList.
  *
  * Complexity Analysis:
- * 1. Merge Sort:
- *    - Time Complexity: O(n log n). Replaces O(n^2) brute-force sorting (e.g. bubble or selection sort).
- *    - Stability: Ensures candidates with identical totals (e.g. Asha and Neha) maintain their
- *      initial registration order.
- *    - Auxiliary Space: O(n) for temporary merge buffers.
+ * 1. Time Complexity:
+ *    - Finding the middle node with fast and slow pointers: O(n/2) = O(n).
+ *    - Reversing the second half: O(n/2) = O(n).
+ *    - Comparing the two halves node by node: O(n/2) = O(n).
+ *    - Reversing the second half back to restore the original list: O(n/2) = O(n).
+ *    - Total Time Complexity: O(n).
  *
- * 2. Best Climb Analysis:
- *    - For k = 6 tests, examining all consecutive intervals [s, e] takes O(k^2) = O(1) constant time
- *      per candidate.
- *    - Overall time for all n candidates: O(n).
+ * 2. Space Complexity:
+ *    - Operates purely in-place by temporarily redirecting next pointers.
+ *    - Total Auxiliary Space Complexity: O(1).
  *
- * 3. CUTOFF Queries:
- *    - Time Complexity: O(log n) per query via binary search on the descending sorted array.
- *    - Replaces O(n) brute-force linear scan per query.
- *
- * 4. PAIR Queries:
- *    - Time Complexity: O(n) per query using two pointers (left and right) on the sorted array.
- *    - Replaces O(n^2) brute-force nested iteration checking all candidate pairs.
+ * Why Copying into an Array or Stack Fails the Requirement:
+ * Copying elements to an array or pushing them onto a stack requires allocating O(n) auxiliary
+ * memory proportional to the list size. On memory-constrained devices like kiosks or embedded
+ * microcontrollers, O(n) memory allocation may trigger out-of-memory errors or garbage collection
+ * pauses, failing the strict O(1) extra space requirement.
  */
 public class Problem5 {
 
-    public static class Candidate {
-        public final int registrationId;
-        public final String name;
-        public final int[] scores;
-        public final int total;
-        public final int bestGain;
-        public final int bestStartTest;
-        public final int bestEndTest;
+    public static class Node {
+        public int data;
+        public Node next;
 
-        public Candidate(int registrationId, String name, int[] scores) {
-            this.registrationId = registrationId;
-            this.name = name;
-            this.scores = scores;
+        public Node(int data) {
+            this.data = data;
+            this.next = null;
+        }
 
-            int sum = 0;
-            for (int s : scores) {
-                sum += s;
-            }
-            this.total = sum;
-
-            // Compute largest total gain over consecutive weekly changes
-            // Weekly change from test i to j is scores[j] - scores[i]
-            int maxGain = Integer.MIN_VALUE;
-            int startT = 1;
-            int endT = 1;
-
-            for (int s = 0; s < scores.length; s++) {
-                for (int e = s + 1; e < scores.length; e++) {
-                    int gain = scores[e] - scores[s];
-                    // Strict inequality (>) preserves the earliest run on ties
-                    if (gain > maxGain) {
-                        maxGain = gain;
-                        startT = s + 1; // 1-based indexing
-                        endT = e + 1;
-                    }
-                }
-            }
-
-            this.bestGain = Math.max(0, maxGain);
-            this.bestStartTest = startT;
-            this.bestEndTest = endT;
+        public Node(int data, Node next) {
+            this.data = data;
+            this.next = next;
         }
     }
 
-    // Stable Merge Sort (Descending order by total score)
-    public static void mergeSort(Candidate[] arr) {
-        if (arr == null || arr.length <= 1) {
-            return;
-        }
-        Candidate[] temp = new Candidate[arr.length];
-        mergeSortInternal(arr, temp, 0, arr.length - 1);
-    }
-
-    private static void mergeSortInternal(Candidate[] arr, Candidate[] temp, int left, int right) {
-        if (left >= right) {
-            return;
-        }
-        int mid = left + (right - left) / 2;
-        mergeSortInternal(arr, temp, left, mid);
-        mergeSortInternal(arr, temp, mid + 1, right);
-        merge(arr, temp, left, mid, right);
-    }
-
-    private static void merge(Candidate[] arr, Candidate[] temp, int left, int mid, int right) {
-        for (int i = left; i <= right; i++) {
-            temp[i] = arr[i];
+    public static boolean isPalindrome(Node head) {
+        if (head == null || head.next == null) {
+            return true;
         }
 
-        int i = left;
-        int j = mid + 1;
-        int k = left;
+        // 1. Find end of first half using slow and fast pointers
+        Node slow = head;
+        Node fast = head;
+        while (fast.next != null && fast.next.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+        }
 
-        while (i <= mid && j <= right) {
-            // >= ensures stability for descending sort: equal totals keep left element first
-            if (temp[i].total >= temp[j].total) {
-                arr[k++] = temp[i++];
-            } else {
-                arr[k++] = temp[j++];
+        // 2. Reverse second half
+        Node secondHalfHead = reverse(slow.next);
+
+        // 3. Compare two halves
+        Node p1 = head;
+        Node p2 = secondHalfHead;
+        boolean isPal = true;
+        while (p2 != null) {
+            if (p1.data != p2.data) {
+                isPal = false;
+                break;
             }
+            p1 = p1.next;
+            p2 = p2.next;
         }
 
-        while (i <= mid) {
-            arr[k++] = temp[i++];
-        }
-        while (j <= right) {
-            arr[k++] = temp[j++];
-        }
+        // 4. Restore original list by reversing second half again
+        slow.next = reverse(secondHalfHead);
+
+        return isPal;
     }
 
-    // Binary search to count how many candidates have total >= cutoff in descending array
-    public static int countAtLeastCutoff(Candidate[] sortedCandidates, int cutoff) {
-        int low = 0;
-        int high = sortedCandidates.length - 1;
-        int ans = -1;
-
-        while (low <= high) {
-            int mid = low + (high - low) / 2;
-            if (sortedCandidates[mid].total >= cutoff) {
-                ans = mid;      // All elements from 0 to mid have total >= cutoff
-                low = mid + 1;  // Try to find if there are further candidates to the right
-            } else {
-                high = mid - 1;
-            }
+    private static Node reverse(Node head) {
+        Node prev = null;
+        Node curr = head;
+        while (curr != null) {
+            Node nextTemp = curr.next;
+            curr.next = prev;
+            prev = curr;
+            curr = nextTemp;
         }
-
-        return ans + 1;
+        return prev;
     }
 
-    // Two-pointer search to find two distinct candidates whose totals sum to target
-    public static String findPairWithSum(Candidate[] sortedCandidates, int target) {
-        int left = 0;
-        int right = sortedCandidates.length - 1;
-
-        while (left < right) {
-            int currentSum = sortedCandidates[left].total + sortedCandidates[right].total;
-
-            if (currentSum == target) {
-                return sortedCandidates[left].name + " + " + sortedCandidates[right].name;
-            } else if (currentSum > target) {
-                // In descending order, moving left forward reduces the sum
-                left++;
-            } else {
-                // Moving right backward increases the sum
-                right--;
-            }
+    public static Node buildList(int[] values) {
+        if (values == null || values.length == 0) {
+            return null;
         }
+        Node head = new Node(values[0]);
+        Node curr = head;
+        for (int i = 1; i < values.length; i++) {
+            curr.next = new Node(values[i]);
+            curr = curr.next;
+        }
+        return head;
+    }
 
-        return "no pair";
+    public static String printList(Node head) {
+        if (head == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        Node curr = head;
+        while (curr != null) {
+            sb.append(curr.data).append(" -> ");
+            curr = curr.next;
+        }
+        sb.append("null");
+        return sb.toString();
     }
 
     public static void main(String[] args) {
-        Candidate[] candidates = new Candidate[]{
-                new Candidate(1, "Asha", new int[]{60, 55, 70, 72, 68, 80}),
-                new Candidate(2, "Ravi", new int[]{70, 72, 65, 60, 75, 78}),
-                new Candidate(3, "Neha", new int[]{50, 65, 62, 70, 74, 84}),
-                new Candidate(4, "Kiran", new int[]{80, 70, 66, 72, 70, 60}),
-                new Candidate(5, "Mohan", new int[]{55, 60, 58, 64, 70, 73})
-        };
-
-        // Stable sort descending by total score
-        mergeSort(candidates);
-
+        // Sample 1: tokens = 4 -> 7 -> 9 -> 7 -> 4
+        Node tokens1 = buildList(new int[]{4, 7, 9, 7, 4});
+        System.out.println("Sample 1 Input: tokens = " + printList(tokens1));
+        boolean res1 = isPalindrome(tokens1);
         System.out.println("Expected Output:");
-        System.out.println("Shortlist:");
-        System.out.println("1. Ravi 420 | best climb +18 (test 4 to 6)");
-        System.out.println("2. Kiran 418 | best climb +6 (test 3 to 4)");
-        System.out.println("3. Asha 405 | best climb +25 (test 2 to 6)");
-        System.out.println("4. Neha 405 | best climb +34 (test 1 to 6)");
-        System.out.println("5. Mohan 380 | best climb +18 (test 1 to 6)");
-        System.out.println("CUTOFF 405: 4 candidates");
-        System.out.println("CUTOFF 410: 2 candidates");
-        System.out.println("PAIR 785: Asha + Mohan");
-        System.out.println("PAIR 900: no pair");
+        System.out.println("Palindrome: true");
+        System.out.println("List after check: 4 -> 7 -> 9 -> 7 -> 4 -> null");
+        System.out.println("Actual Output:");
+        System.out.println("Palindrome: " + res1);
+        System.out.println("List after check: " + printList(tokens1));
         System.out.println();
 
+        // Sample 2: tokens = 4 -> 7 -> 7 -> 9
+        Node tokens2 = buildList(new int[]{4, 7, 7, 9});
+        System.out.println("Sample 2 Input: tokens = " + printList(tokens2));
+        boolean res2 = isPalindrome(tokens2);
+        System.out.println("Expected Output:");
+        System.out.println("Palindrome: false");
+        System.out.println("List after check: 4 -> 7 -> 7 -> 9 -> null");
         System.out.println("Actual Output:");
-        System.out.println("Shortlist:");
-        for (int i = 0; i < candidates.length; i++) {
-            Candidate c = candidates[i];
-            System.out.println((i + 1) + ". " + c.name + " " + c.total + " | best climb +"
-                    + c.bestGain + " (test " + c.bestStartTest + " to " + c.bestEndTest + ")");
-        }
-
-        // Queries
-        int cutoff1 = 405;
-        System.out.println("CUTOFF " + cutoff1 + ": " + countAtLeastCutoff(candidates, cutoff1) + " candidates");
-
-        int cutoff2 = 410;
-        System.out.println("CUTOFF " + cutoff2 + ": " + countAtLeastCutoff(candidates, cutoff2) + " candidates");
-
-        int pairTarget1 = 785;
-        System.out.println("PAIR " + pairTarget1 + ": " + findPairWithSum(candidates, pairTarget1));
-
-        int pairTarget2 = 900;
-        System.out.println("PAIR " + pairTarget2 + ": " + findPairWithSum(candidates, pairTarget2));
+        System.out.println("Palindrome: " + res2);
+        System.out.println("List after check: " + printList(tokens2));
     }
 }

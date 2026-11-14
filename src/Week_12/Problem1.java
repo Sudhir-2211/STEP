@@ -1,151 +1,133 @@
 package Week12;
 
 /**
- * Problem 1: Order Walkthrough with Nested Types
+ * Problem 1: Delivery Route Loop Detector
  *
  * TASK:
- * An online order stores its line items in an internal array. Shop staff need to walk
- * through the order one line at a time and see the total cost.
- * Design an Order class with a LineItem static nested class (productName, quantity, unitPrice
- * and double total()) and a Cursor member inner class with hasNext(), next() and reset().
- * Use the cursor to print every line item and the order total, and justify in one line each
- * why LineItem is static nested and Cursor is a member inner class.
+ * A delivery app stores the stops of a route as a singly linked list. A data-entry bug
+ * sometimes links the last stop back to an earlier stop, which makes the driver go round forever.
+ * Detect whether the route has a loop and, if so, report the stop where the loop starts
+ * and how many stops are in the loop.
+ * Implement String detectLoop(Node head) using only O(1) extra space: no HashSet,
+ * no visited flags and no changes to the nodes.
  *
  * Complexity Analysis:
  * 1. Time Complexity:
- *    - Adding an item to the internal array: O(1) amortized.
- *    - Walking through the entire order using Cursor: O(n), visiting each line item once.
+ *    - Phase 1 (Cycle Detection): Fast moves 2 steps, Slow moves 1 step. Slow enters cycle of length L
+ *      after k steps; fast catches slow within L steps. Time: O(k + L) = O(n).
+ *    - Phase 2 (Loop Length): Fast stays at meeting point while pointer traverses the cycle once. Time: O(L) = O(n).
+ *    - Phase 3 (Loop Start): One pointer resets to head, both advance 1 step at a time until meeting. Time: O(k) = O(n).
+ *    - Total Time Complexity: O(n).
  *
  * 2. Space Complexity:
- *    - LineItem instances in the internal array: O(n) to store n items.
- *    - Cursor: O(1) auxiliary space maintaining an index pointer.
+ *    - Auxiliary space is strictly O(1) using only two pointer references.
  *
- * Design Justifications:
- * - cursor: inner (reads the order's array)
- * - line item: static nested (needs no order)
+ * Why Slow and Fast Pointers Must Meet Inside the Loop:
+ * Inside a cycle of length L, the fast pointer closes the distance to the slow pointer by exactly
+ * 1 node per iteration (relative speed = 2 - 1 = 1). Because the gap decreases by 1 on every step modulo L,
+ * the distance must eventually reach 0, guaranteeing they meet in at most L steps.
  */
 public class Problem1 {
 
-    public static class Order {
-        private LineItem[] items;
-        private int count;
+    public static class Node {
+        public int data;
+        public Node next;
 
-        public Order(int capacity) {
-            this.items = new LineItem[capacity];
-            this.count = 0;
+        public Node(int data) {
+            this.data = data;
+            this.next = null;
         }
 
-        public void addItem(String productName, int quantity, double unitPrice) {
-            if (count == items.length) {
-                // Resize if needed
-                LineItem[] nextItems = new LineItem[items.length * 2];
-                System.arraycopy(items, 0, nextItems, 0, items.length);
-                items = nextItems;
-            }
-            items[count++] = new LineItem(productName, quantity, unitPrice);
-        }
-
-        public double calculateOrderTotal() {
-            double total = 0.0;
-            for (int i = 0; i < count; i++) {
-                total += items[i].total();
-            }
-            return total;
-        }
-
-        public Cursor getCursor() {
-            return new Cursor();
-        }
-
-        /**
-         * Static nested class: Does not require an implicit reference to an enclosing Order instance.
-         * A LineItem is a standalone data holder containing its own product, quantity, and unit price.
-         */
-        public static class LineItem {
-            private final String productName;
-            private final int quantity;
-            private final double unitPrice;
-
-            public LineItem(String productName, int quantity, double unitPrice) {
-                this.productName = productName;
-                this.quantity = quantity;
-                this.unitPrice = unitPrice;
-            }
-
-            public String getProductName() {
-                return productName;
-            }
-
-            public int getQuantity() {
-                return quantity;
-            }
-
-            public double getUnitPrice() {
-                return unitPrice;
-            }
-
-            public double total() {
-                return quantity * unitPrice;
-            }
-        }
-
-        /**
-         * Member inner class: Inherently bound to the enclosing Order instance,
-         * granting direct access to Order's private items array and count.
-         */
-        public class Cursor {
-            private int currentIndex = 0;
-
-            public boolean hasNext() {
-                return currentIndex < count;
-            }
-
-            public LineItem next() {
-                if (!hasNext()) {
-                    return null;
-                }
-                return items[currentIndex++];
-            }
-
-            public void reset() {
-                currentIndex = 0;
-            }
+        public Node(int data, Node next) {
+            this.data = data;
+            this.next = next;
         }
     }
 
-    private static String formatMoney(double val) {
-        if (val == (long) val) {
-            return String.valueOf((long) val);
+    public static String detectLoop(Node head) {
+        if (head == null || head.next == null) {
+            return "Loop: no";
         }
-        return String.valueOf(val);
+
+        Node slow = head;
+        Node fast = head;
+        boolean hasLoop = false;
+
+        // Phase 1: Floyd's cycle-finding algorithm
+        while (fast != null && fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+            if (slow == fast) {
+                hasLoop = true;
+                break;
+            }
+        }
+
+        if (!hasLoop) {
+            return "Loop: no";
+        }
+
+        // Phase 2: Calculate loop length
+        int length = 1;
+        Node curr = slow.next;
+        while (curr != slow) {
+            length++;
+            curr = curr.next;
+        }
+
+        // Phase 3: Find loop start node
+        Node ptr1 = head;
+        Node ptr2 = slow;
+        while (ptr1 != ptr2) {
+            ptr1 = ptr1.next;
+            ptr2 = ptr2.next;
+        }
+
+        return "Loop: yes, starts at stop " + ptr1.data + ", length " + length;
+    }
+
+    public static Node buildListWithLoop(int[] values, int pos) {
+        if (values == null || values.length == 0) {
+            return null;
+        }
+        Node head = new Node(values[0]);
+        Node curr = head;
+        Node loopTarget = (pos == 0) ? head : null;
+
+        for (int i = 1; i < values.length; i++) {
+            curr.next = new Node(values[i]);
+            curr = curr.next;
+            if (i == pos) {
+                loopTarget = curr;
+            }
+        }
+
+        if (pos >= 0 && loopTarget != null) {
+            curr.next = loopTarget;
+        }
+
+        return head;
     }
 
     public static void main(String[] args) {
-        Order order = new Order(10);
-        order.addItem("Pen", 3, 10);
-        order.addItem("Book", 2, 250);
-        order.addItem("Bag", 1, 700);
-
-        System.out.println("Expected Output:");
-        System.out.println("Pen 30");
-        System.out.println("Book 500");
-        System.out.println("Bag 700");
-        System.out.println("Total 1230");
-        System.out.println("cursor: inner (reads the order's array)");
-        System.out.println("line item: static nested (needs no order)");
+        // Sample 1: stops = 10 -> 20 -> 30 -> 40 -> 50, pos = 2
+        Node list1 = buildListWithLoop(new int[]{10, 20, 30, 40, 50}, 2);
+        System.out.println("Sample 1 Input: stops = 10 -> 20 -> 30 -> 40 -> 50, pos = 2");
+        System.out.println("Expected Output: Loop: yes, starts at stop 30, length 3");
+        System.out.println("Actual Output:   " + detectLoop(list1));
         System.out.println();
 
-        System.out.println("Actual Output:");
-        Order.Cursor cursor = order.getCursor();
-        double orderTotal = 0;
-        while (cursor.hasNext()) {
-            Order.LineItem item = cursor.next();
-            double itemTotal = item.total();
-            orderTotal += itemTotal;
-            System.out.println(item.getProductName() + " " + formatMoney(itemTotal));
-        }
-        System.out.println("Total " + formatMoney(orderTotal));
-        System.out.println("cursor: inner (reads the order's array)");
-        System.out.println("line item: static nested (needs no order)");
+        // Sample 2: stops = 10 -> 20 -> 30, pos = -1
+        Node list2 = buildListWithLoop(new int[]{10, 20, 30}, -1);
+        System.out.println("Sample 2 Input: stops = 10 -> 20 -> 30, pos = -1");
+        System.out.println("Expected Output: Loop: no");
+        System.out.println("Actual Output:   " + detectLoop(list2));
+        System.out.println();
+
+        // Sample 3: stops = 7, pos = 0
+        Node list3 = buildListWithLoop(new int[]{7}, 0);
+        System.out.println("Sample 3 Input: stops = 7, pos = 0");
+        System.out.println("Expected Output: Loop: yes, starts at stop 7, length 1");
+        System.out.println("Actual Output:   " + detectLoop(list3));
     }
 }

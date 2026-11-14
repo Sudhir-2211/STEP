@@ -1,121 +1,173 @@
 package Week12;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Queue;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Problem 3: Round-Robin Lab Scheduler
+ * Problem 3: Recent Pages Cache (LRU Cache)
  *
  * TASK:
- * One lab machine is shared by several jobs. Each job may run for at most one quantum
- * at a time; an unfinished job goes to the back of the line, and a finished job leaves.
- * Implement a LabScheduler that uses a queue of jobs, each storing its remaining time.
- * Print every time slice as Job(start-end) and then each job's finishing time in the order
- * the jobs finish.
+ * The learning portal keeps the most recently opened pages in a small cache.
+ * When the cache is full and a new page is added, the least recently used page is removed.
+ * Reading or updating a page makes it the most recently used.
+ * Implement a class RecentCache(int capacity) with String get(int key) and
+ * void put(int key, String page), both in O(1) time.
+ * Use your own doubly linked list (with prev and next) together with a HashMap from key to node;
+ * do not use java.util.LinkedHashMap.
  *
  * Complexity Analysis:
  * 1. Time Complexity:
- *    - Let N be the number of jobs, Q be the time quantum, and T be the sum of execution times of all jobs.
- *    - Each scheduling slice advances time by up to Q units. The total number of scheduling slices
- *      is at most ceil(T / Q) + N.
- *    - Each queue dequeue, time computation, and enqueue operation takes O(1) time.
- *    - Total Time Complexity: O(T / Q + N).
+ *    - get(int key): O(1). Hash map lookup takes O(1) average time, and moving a doubly linked
+ *      node to the head requires O(1) pointer updates.
+ *    - put(int key, String page): O(1). Inserting/updating in the hash map takes O(1) average time,
+ *      and adding to the head or removing from the tail takes O(1) pointer operations.
  *
  * 2. Space Complexity:
- *    - The queue holds at most N Job instances at any given time.
- *    - Total Auxiliary Space Complexity: O(N).
+ *    - The cache stores at most 'capacity' nodes in both the hash map and the doubly linked list.
+ *    - Total Auxiliary Space Complexity: O(capacity).
+ *
+ * Why a Singly Linked List Cannot Remove an Arbitrary Node in O(1):
+ * In a singly linked list, each node only holds a reference to its successor (next).
+ * To remove an arbitrary node, its predecessor's 'next' pointer must be redirected.
+ * Because a singly linked node has no backward link (prev), finding the predecessor requires
+ * scanning linearly from the head of the list, which incurs an O(n) traversal cost.
+ * A doubly linked list resolves this in O(1) by providing direct access to node.prev.
  */
 public class Problem3 {
 
-    public static class Job {
-        public final String name;
-        public int remainingTime;
+    public static class Node {
+        public int key;
+        public String page;
+        public Node prev;
+        public Node next;
 
-        public Job(String name, int totalTime) {
-            this.name = name;
-            this.remainingTime = totalTime;
+        public Node(int key, String page) {
+            this.key = key;
+            this.page = page;
         }
     }
 
-    public static class FinishedJob {
-        public final String name;
-        public final int finishTime;
+    public static class RecentCache {
+        private final int capacity;
+        private final Map<Integer, Node> map;
+        private final Node head;
+        private final Node tail;
 
-        public FinishedJob(String name, int finishTime) {
-            this.name = name;
-            this.finishTime = finishTime;
-        }
-    }
+        public RecentCache(int capacity) {
+            this.capacity = capacity;
+            this.map = new HashMap<>();
 
-    public static class LabScheduler {
-        private final int quantum;
-        private final Queue<Job> queue;
-        private final List<String> timeSlices;
-        private final List<FinishedJob> finishedJobs;
-
-        public LabScheduler(int quantum) {
-            this.quantum = quantum;
-            this.queue = new ArrayDeque<>();
-            this.timeSlices = new ArrayList<>();
-            this.finishedJobs = new ArrayList<>();
+            // Sentinel dummy nodes
+            this.head = new Node(-1, "");
+            this.tail = new Node(-1, "");
+            head.next = tail;
+            tail.prev = head;
         }
 
-        public void addJob(String name, int totalTime) {
-            queue.offer(new Job(name, totalTime));
+        private void removeNode(Node node) {
+            node.prev.next = node.next;
+            node.next.prev = node.prev;
         }
 
-        public void run() {
-            int currentTime = 0;
+        private void addToFront(Node node) {
+            node.next = head.next;
+            node.prev = head;
+            head.next.prev = node;
+            head.next = node;
+        }
 
-            while (!queue.isEmpty()) {
-                Job currentJob = queue.poll();
-                int executionTime = Math.min(quantum, currentJob.remainingTime);
-                int startTime = currentTime;
-                int endTime = currentTime + executionTime;
-                currentTime = endTime;
+        private void moveToFront(Node node) {
+            removeNode(node);
+            addToFront(node);
+        }
 
-                currentJob.remainingTime -= executionTime;
-                timeSlices.add(currentJob.name + "(" + startTime + "-" + endTime + ")");
+        public String get(int key) {
+            if (!map.containsKey(key)) {
+                return "-1";
+            }
+            Node node = map.get(key);
+            moveToFront(node);
+            return node.page;
+        }
 
-                if (currentJob.remainingTime > 0) {
-                    queue.offer(currentJob);
-                } else {
-                    finishedJobs.add(new FinishedJob(currentJob.name, endTime));
+        public String put(int key, String page) {
+            if (map.containsKey(key)) {
+                Node existing = map.get(key);
+                existing.page = page;
+                moveToFront(existing);
+                return "updated";
+            } else {
+                String evictedMsg = "";
+                if (map.size() >= capacity) {
+                    // Evict LRU node (just before tail sentinel)
+                    Node lru = tail.prev;
+                    removeNode(lru);
+                    map.remove(lru.key);
+                    evictedMsg = " evicted " + lru.key;
                 }
+                Node newNode = new Node(key, page);
+                addToFront(newNode);
+                map.put(key, newNode);
+                return evictedMsg;
             }
         }
 
-        public void printSchedule() {
-            // Print time slices line
-            System.out.println(String.join(" ", timeSlices));
-
-            // Print finished jobs line
-            StringBuilder sb = new StringBuilder("finish ");
-            for (int i = 0; i < finishedJobs.size(); i++) {
-                FinishedJob fj = finishedJobs.get(i);
-                sb.append(fj.name).append(" ").append(fj.finishTime);
-                if (i < finishedJobs.size() - 1) {
+        public String printCacheOrder() {
+            StringBuilder sb = new StringBuilder();
+            Node curr = head.next;
+            boolean first = true;
+            while (curr != tail) {
+                if (!first) {
                     sb.append(", ");
                 }
+                sb.append(curr.key).append("=").append(curr.page);
+                first = false;
+                curr = curr.next;
             }
-            System.out.println(sb);
+            return sb.toString();
         }
     }
 
     public static void main(String[] args) {
         System.out.println("Expected Output:");
-        System.out.println("P1(0-3) P2(3-6) P3(6-9) P1(9-11) P3(11-14) P3(14-15)");
-        System.out.println("finish P2 6, P1 11, P3 15");
+        System.out.println("put(1,Home)");
+        System.out.println("put(2,Notes)");
+        System.out.println("get(1) -> Home");
+        System.out.println("put(3,Quiz) evicted 2");
+        System.out.println("get(2) -> -1");
+        System.out.println("put(1,Home2) updated");
+        System.out.println("put(4,Mail) evicted 3");
+        System.out.println("get(3) -> -1");
+        System.out.println("get(1) -> Home2");
+        System.out.println("Cache (most recent first): 1=Home2, 4=Mail");
         System.out.println();
 
         System.out.println("Actual Output:");
-        LabScheduler scheduler = new LabScheduler(3);
-        scheduler.addJob("P1", 5);
-        scheduler.addJob("P2", 3);
-        scheduler.addJob("P3", 7);
-        scheduler.run();
-        scheduler.printSchedule();
+        RecentCache cache = new RecentCache(2);
+
+        String ev;
+        ev = cache.put(1, "Home");
+        System.out.println("put(1,Home)" + ev);
+
+        ev = cache.put(2, "Notes");
+        System.out.println("put(2,Notes)" + ev);
+
+        System.out.println("get(1) -> " + cache.get(1));
+
+        ev = cache.put(3, "Quiz");
+        System.out.println("put(3,Quiz)" + ev);
+
+        System.out.println("get(2) -> " + cache.get(2));
+
+        ev = cache.put(1, "Home2");
+        System.out.println("put(1,Home2) " + ev);
+
+        ev = cache.put(4, "Mail");
+        System.out.println("put(4,Mail)" + ev);
+
+        System.out.println("get(3) -> " + cache.get(3));
+        System.out.println("get(1) -> " + cache.get(1));
+
+        System.out.println("Cache (most recent first): " + cache.printCacheOrder());
     }
 }
